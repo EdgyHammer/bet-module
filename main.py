@@ -1,90 +1,120 @@
-'''
-Discord-Bot-Module template. For detailed usages,
- check https://interactions-py.github.io/interactions.py/
-
-Copyright (C) 2024  __retr0.init__
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <https://www.gnu.org/licenses/>.
-'''
 import interactions
-# Use the following method to import the internal module in the current same directory
-from . import internal_t
-# Import the os module to get the parent path to the local files
-import os
-# aiofiles module is recommended for file operation
+from interactions import Client, Intents
+from interactions import Message
+from interactions import Extension, BaseContext, listen
+from interactions import ActionRow, Button, ButtonStyle
+from interactions import Modal, ShortText, ModalContext
+from interactions import SlashCommand, SlashContext
+from interactions.api.events import Component, ThreadCreate, MessageReactionAdd
+from interactions.models.discord.channel import GuildForum, GuildForumPost
+from enum import IntEnum
+from typing import List, Dict
+import json
 import aiofiles
-# You can listen to the interactions.py event
-from interactions.api.events import MessageCreate
-# You can create a background task
-from interactions import Task, IntervalTrigger
+import asyncio
+import datetime
+import os
+import re
 
-'''
-Replace the ModuleName with any name you'd like
-'''
-class ModuleName(interactions.Extension):
-    module_base: interactions.SlashCommand = interactions.SlashCommand(
-        name="replace_your_command_base_here",
-        description="Replace here for the base command descriptions"
+from . import bet_utils
+
+# # An odds calculator
+
+# The extension class that puts everything together.
+
+class CompetitionExtension(Extension):
+    def __init__(self, bot: Client):
+        self.bot: Client = bot
+
+        # self.COMPETITION_THREAD_ID: int = 1228196847668170812
+
+        self.channel: GuildForum = None
+        self.control_panel: bet_utils.ControlPanel = None
+
+    module_base = SlashCommand(
+        name="bet",
+        description="Bet utilities for essay competition."
     )
-    module_group: interactions.SlashCommand = module_base.group(
-        name="replace_your_command_group_here",
-        description="Replace here for the group command descriptions"
-    )
 
-    @module_group.subcommand("ping", sub_cmd_description="Replace the description of this command")
-    @interactions.slash_option(
-        name = "option_name",
-        description = "Option description",
-        required = True,
-        opt_type = interactions.OptionType.STRING
-    )
-    async def module_group_ping(self, ctx: interactions.SlashContext, option_name: str):
-        await ctx.send(f"Pong {option_name}!")
-        internal_t.internal_t_testfunc()
+    @module_base.subcommand(sub_cmd_name='test', sub_cmd_description='test command, for test only')
+    async def test(self, ctx: SlashContext):
+        self.control_panel.print_competition_info()
 
-    @module_base.subcommand("pong", sub_cmd_description="Replace the description of this command")
-    @interactions.slash_option(
-        name = "option_name",
-        description = "Option description",
-        required = True,
-        opt_type = interactions.OptionType.STRING
-    )
-    async def module_group_pong(self, ctx: interactions.SlashContext, option_name: str):
-        # The local file path is inside the directory of the module's main script file
-        async with aiofiles.open(f"{os.path.dirname(__file__)}/example_file.txt") as afp:
-            file_content: str = await afp.read()
-        await ctx.send(f"Pong {option_name}!\nFile content: {file_content}")
-        internal_t.internal_t_testfunc()
+    @module_base.subcommand(sub_cmd_name='setup_competition', sub_cmd_description='Set up the competition bet environments.')
+    async def setup_competition(self, ctx: SlashContext):
+        self.channel = self.bot.get_channel(bet_utils.COMPETITION_FORUM_CHANNEL_ID)
+        print(self.channel)
+        self.control_panel = bet_utils.ControlPanel(self.channel)
+        await self.control_panel.create_control_panel_thread()
 
-    @interactions.listen(MessageCreate)
-    async def on_messagecreate(self, event: MessageCreate):
-        '''
-        Event listener when a new message is created
-        '''
-        print(f"User {event.message.author.display_name} sent '{event.message.content}'")
+    @listen(Component)
+    async def on_any_button(self, event: Component):
+        ctx = event.ctx
+        print(ctx.custom_id)
 
-    # You can even create a background task to run as you wish.
-    # Refer to https://interactions-py.github.io/interactions.py/Guides/40%20Tasks/ for guides
-    # Refer to https://interactions-py.github.io/interactions.py/API%20Reference/API%20Reference/models/Internal/tasks/ for detailed APIs
-    @Task.create(IntervalTrigger(minutes=1))
-    async def task_everyminute(self):
-        channel: interactions.TYPE_MESSAGEABLE_CHANNEL = self.bot.get_guild(1234567890).get_channel(1234567890)
-        await channel.send("Background task send every one minute")
-        print("Background Task send every one minute")
+        # When competition start, bot grant rewards to authors who's already written an article.
+        if ctx.custom_id == 'set_phase:' + 'ongoing' and self.control_panel.phase != bet_utils.CompetitionPhase.ONGOING:
+            print(f"Competition started.")
+            self.control_panel.phase = bet_utils.CompetitionPhase.ONGOING
+            all_existing_threads = await self.channel.fetch_posts()
+            for aThread in all_existing_threads:
+                temp_thread_id = aThread.id
+                temp_thread_message = await aThread.fetch_message(temp_thread_id)
+                temp_participant = bet_utils.Participant(str(temp_thread_message.author.username))
+                await bet_utils.grant_reward_to_article_author(temp_participant, temp_thread_message, self.control_panel.all_participants,
+                                                     bet_utils.ARTICLE_VALIDITY_THRESHOLD,
+                                                     bet_utils.ARTICLE_AUTHOR_REWARD)
+                await self.control_panel.add_new_bet_option_ui(aThread)
 
-    # The command to start the task
-    @module_base.subcommand("start_task", sub_cmd_description="Start the background task")
-    async def module_base_starttask(self, ctx: interactions.SlashContext):
-        self.task_everyminute.start()
-        await ctx.send("Task started")
+        elif ctx.custom_id == 'set_phase:' + 'grading':
+            self.control_panel.phase = bet_utils.CompetitionPhase.GRADING
+
+        elif ctx.custom_id == 'set_phase:' + 'concluding':
+            self.control_panel.phase = bet_utils.CompetitionPhase.CONCLUDING
+            await self.control_panel.send_announcement_modal(event)
+
+            temp_competition_result = ''
+
+            for aParticipant in self.control_panel.all_participants:
+                temp_competition_result += str(aParticipant.balance) + '\n'
+
+            print(temp_competition_result)
+
+            await ctx.send(temp_competition_result)
+
+        elif ctx.custom_id == 'collect_ubi':
+            temp_participant = bet_utils.Participant(str(ctx.author.username))
+
+            if temp_participant not in self.control_panel.all_participants:
+                await temp_participant.collect_ubi(event)
+                self.control_panel.all_participants.append(temp_participant)
+            else:
+                for aParticipant in self.control_panel.all_participants:
+                    if aParticipant == temp_participant and not aParticipant.already_UBIed:
+                        await aParticipant.collect_ubi(event)
+
+        elif ctx.custom_id[:3] == 'bet':
+            await self.control_panel.send_bet_modal(event)
+
+    @listen(ThreadCreate)
+    async def on_new_thread(self, event: ThreadCreate):
+        if self.channel != event.thread.parent_channel:
+            print('Thread filtered.')
+        else:
+            temp_thread_id = event.thread.id
+            temp_thread_message = await event.thread.fetch_message(temp_thread_id)
+            temp_username = str(temp_thread_message.author.username)
+            temp_participant = bet_utils.Participant(temp_username)
+
+            if self.control_panel.phase == bet_utils.CompetitionPhase.ONGOING:
+                await self.control_panel.add_new_bet_option_ui(event.thread)
+                await bet_utils.grant_reward_to_article_author(temp_participant, temp_thread_message, self.control_panel.all_participants,
+                                                     bet_utils.ARTICLE_VALIDITY_THRESHOLD,
+                                                     bet_utils.ARTICLE_AUTHOR_REWARD)
+
+    @listen(MessageReactionAdd)
+    async def on_reaction_added(self, event: MessageReactionAdd):
+        temp_message = event.message
+        temp_message_id = event.message.id
+        if self.control_panel.phase == bet_utils.CompetitionPhase.ONGOING and temp_message_id in self.control_panel.all_articles_thread_id:
+            await bet_utils.remove_premature_reactions(temp_message)
