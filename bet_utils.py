@@ -1,11 +1,7 @@
-import interactions
-from interactions import Client, Intents
 from interactions import Message
-from interactions import Extension, BaseContext, listen
 from interactions import ActionRow, Button, ButtonStyle
 from interactions import Modal, ShortText, ModalContext
-from interactions import SlashCommand, SlashContext
-from interactions.api.events import Component, ThreadCreate, MessageReactionAdd
+from interactions.api.events import Component
 from interactions.models.discord.channel import GuildForum, GuildForumPost
 from enum import IntEnum
 from typing import List, Dict
@@ -13,8 +9,7 @@ import json
 import aiofiles
 import asyncio
 import datetime
-import os
-import re
+
 
 #user_balance_database_file_path = 'Data/user_balance.json'
 COMPETITION_GUILD_ID: int = 1200434448425033788
@@ -31,7 +26,7 @@ class CompetitionPhase(IntEnum):
     CONCLUDING = 4
 
 
-# A participant class to store and manage user data in situ.
+# A participant class to store and manage user data (currently in ram only).
 class Participant:
     def __init__(self, username: str):
         self.is_article_author: bool = False
@@ -75,7 +70,8 @@ class Participant:
             print('User type mismatch')
 
 
-# # A control panel class to manage the control panel thread.
+# # A control panel class to manage the control panel thread, within which all the bet-related activities, both user-wise and
+# administrator-wise, are conducted.
 class ControlPanel:
     def __init__(self, channel: GuildForum):
         self.thread_title: str = '投注站'
@@ -119,7 +115,7 @@ class ControlPanel:
             )
         ]
 
-    # On competition setup complete and turned into pre-match phase, bot create a control panel thread, where admin can manage the competition
+    # On competition setup completion and turned into pre-match phase, bot creates a control panel thread, where admin can manage the competition
     # and members can bet.
     async def create_control_panel_thread(self):
         post: GuildForumPost = await self.channel.create_post(name=self.thread_title, content=self.thread_content, components=self.main_menu_ui)
@@ -188,7 +184,7 @@ class ControlPanel:
         ctx = event.ctx
         announcement_modal = Modal(
             ShortText(label="优胜文章id", value="1234567890123", custom_id="winner_thread_id"),
-            title="确认押注金额",
+            title="宣布获奖文章id",
         )
         await ctx.send_modal(modal=announcement_modal)
         modal_ctx: ModalContext = await ctx.bot.wait_for_modal(announcement_modal)
@@ -200,6 +196,7 @@ class ControlPanel:
         except ValueError:
             await modal_ctx.send('请输入整数。', delete_after=5, ephemeral=True)
 
+    # # An odds calculator
     def calculate_odds(self):
         total_bet = 0
         for aParticipant in self.all_participants:

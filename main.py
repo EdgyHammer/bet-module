@@ -1,14 +1,10 @@
 import interactions
-from interactions import Client, Intents
-from interactions import Message
-from interactions import Extension, BaseContext, listen
-from interactions import ActionRow, Button, ButtonStyle
-from interactions import Modal, ShortText, ModalContext
+from interactions import Client
+from interactions import Extension, listen
 from interactions import SlashCommand, SlashContext
 from interactions.api.events import Component, ThreadCreate, MessageReactionAdd
-from interactions.models.discord.channel import GuildForum, GuildForumPost
-from enum import IntEnum
-from typing import List, Dict
+from interactions.models.discord.channel import GuildForum
+
 import json
 import aiofiles
 import asyncio
@@ -18,29 +14,30 @@ import re
 
 from . import bet_utils
 
-# # An odds calculator
-
 # The extension class that puts everything together.
+
 
 class CompetitionExtension(Extension):
     def __init__(self, bot: Client):
         self.bot: Client = bot
 
-        # self.COMPETITION_THREAD_ID: int = 1228196847668170812
-
         self.channel: GuildForum = None
         self.control_panel: bet_utils.ControlPanel = None
 
     module_base = SlashCommand(
-        name="bet",
-        description="Bet utilities for essay competition."
+        name="bet", description="Bet utilities for essay competition."
     )
 
-    @module_base.subcommand(sub_cmd_name='test', sub_cmd_description='test command, for test only')
+    @module_base.subcommand(
+        sub_cmd_name="test", sub_cmd_description="test command, for test only"
+    )
     async def test(self, ctx: SlashContext):
         self.control_panel.print_competition_info()
 
-    @module_base.subcommand(sub_cmd_name='setup_competition', sub_cmd_description='Set up the competition bet environments.')
+    @module_base.subcommand(
+        sub_cmd_name="setup_competition",
+        sub_cmd_description="Set up the competition bet control panel thread.",
+    )
     async def setup_competition(self, ctx: SlashContext):
         self.channel = self.bot.get_channel(bet_utils.COMPETITION_FORUM_CHANNEL_ID)
         print(self.channel)
@@ -52,37 +49,52 @@ class CompetitionExtension(Extension):
         ctx = event.ctx
         print(ctx.custom_id)
 
-        # When competition start, bot grant rewards to authors who's already written an article.
-        if ctx.custom_id == 'set_phase:' + 'ongoing' and self.control_panel.phase != bet_utils.CompetitionPhase.ONGOING:
+        if ctx.custom_id == "test" + self.start_date:
+            ctx.send(
+                f"Current competition phase is:{self.control_panel.phase}, button clicked by:{ctx.author.username},{ctx.author.nickname}",
+                ephemeral=True
+            )
+
+        # When 开始比赛 button is clicked, competition starts, bot grant rewards to authors who's already written an article.
+        if (
+            ctx.custom_id == "set_phase:" + "ongoing"
+            and self.control_panel.phase != bet_utils.CompetitionPhase.ONGOING
+        ):
             print(f"Competition started.")
             self.control_panel.phase = bet_utils.CompetitionPhase.ONGOING
             all_existing_threads = await self.channel.fetch_posts()
             for aThread in all_existing_threads:
                 temp_thread_id = aThread.id
                 temp_thread_message = await aThread.fetch_message(temp_thread_id)
-                temp_participant = bet_utils.Participant(str(temp_thread_message.author.username))
-                await bet_utils.grant_reward_to_article_author(temp_participant, temp_thread_message, self.control_panel.all_participants,
-                                                     bet_utils.ARTICLE_VALIDITY_THRESHOLD,
-                                                     bet_utils.ARTICLE_AUTHOR_REWARD)
+                temp_participant = bet_utils.Participant(
+                    str(temp_thread_message.author.username)
+                )
+                await bet_utils.grant_reward_to_article_author(
+                    temp_participant,
+                    temp_thread_message,
+                    self.control_panel.all_participants,
+                    bet_utils.ARTICLE_VALIDITY_THRESHOLD,
+                    bet_utils.ARTICLE_AUTHOR_REWARD,
+                )
                 await self.control_panel.add_new_bet_option_ui(aThread)
 
-        elif ctx.custom_id == 'set_phase:' + 'grading':
+        elif ctx.custom_id == "set_phase:" + "grading":
             self.control_panel.phase = bet_utils.CompetitionPhase.GRADING
 
-        elif ctx.custom_id == 'set_phase:' + 'concluding':
+        elif ctx.custom_id == "set_phase:" + "concluding":
             self.control_panel.phase = bet_utils.CompetitionPhase.CONCLUDING
             await self.control_panel.send_announcement_modal(event)
 
-            temp_competition_result = ''
+            temp_competition_result = ""
 
             for aParticipant in self.control_panel.all_participants:
-                temp_competition_result += str(aParticipant.balance) + '\n'
+                temp_competition_result += str(aParticipant.balance) + "\n"
 
             print(temp_competition_result)
 
             await ctx.send(temp_competition_result)
 
-        elif ctx.custom_id == 'collect_ubi':
+        elif ctx.custom_id == "collect_ubi":
             temp_participant = bet_utils.Participant(str(ctx.author.username))
 
             if temp_participant not in self.control_panel.all_participants:
@@ -90,16 +102,19 @@ class CompetitionExtension(Extension):
                 self.control_panel.all_participants.append(temp_participant)
             else:
                 for aParticipant in self.control_panel.all_participants:
-                    if aParticipant == temp_participant and not aParticipant.already_UBIed:
+                    if (
+                        aParticipant == temp_participant
+                        and not aParticipant.already_UBIed
+                    ):
                         await aParticipant.collect_ubi(event)
 
-        elif ctx.custom_id[:3] == 'bet':
+        elif ctx.custom_id[:3] == "bet":
             await self.control_panel.send_bet_modal(event)
 
     @listen(ThreadCreate)
     async def on_new_thread(self, event: ThreadCreate):
         if self.channel != event.thread.parent_channel:
-            print('Thread filtered.')
+            print("Thread filtered.")
         else:
             temp_thread_id = event.thread.id
             temp_thread_message = await event.thread.fetch_message(temp_thread_id)
@@ -108,13 +123,20 @@ class CompetitionExtension(Extension):
 
             if self.control_panel.phase == bet_utils.CompetitionPhase.ONGOING:
                 await self.control_panel.add_new_bet_option_ui(event.thread)
-                await bet_utils.grant_reward_to_article_author(temp_participant, temp_thread_message, self.control_panel.all_participants,
-                                                     bet_utils.ARTICLE_VALIDITY_THRESHOLD,
-                                                     bet_utils.ARTICLE_AUTHOR_REWARD)
+                await bet_utils.grant_reward_to_article_author(
+                    temp_participant,
+                    temp_thread_message,
+                    self.control_panel.all_participants,
+                    bet_utils.ARTICLE_VALIDITY_THRESHOLD,
+                    bet_utils.ARTICLE_AUTHOR_REWARD,
+                )
 
     @listen(MessageReactionAdd)
     async def on_reaction_added(self, event: MessageReactionAdd):
         temp_message = event.message
         temp_message_id = event.message.id
-        if self.control_panel.phase == bet_utils.CompetitionPhase.ONGOING and temp_message_id in self.control_panel.all_articles_thread_id:
+        if (
+            self.control_panel.phase == bet_utils.CompetitionPhase.ONGOING
+            and temp_message_id in self.control_panel.all_articles_thread_id
+        ):
             await bet_utils.remove_premature_reactions(temp_message)
