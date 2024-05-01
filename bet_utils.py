@@ -7,17 +7,20 @@ from enum import IntEnum
 from typing import List, Dict
 import json
 import aiofiles
+import os
 import asyncio
 import datetime
 
 
-#user_balance_database_file_path = 'Data/user_balance.json'
+BET_PARTICIPANTS_BALANCE_DATABASE_PATH= f"{os.path.dirname(__file__)}/participants_balance.json"
 COMPETITION_GUILD_ID: int = 1200434448425033788
 COMPETITION_FORUM_CHANNEL_ID: int = 1228907795563151511
 ARTICLE_VALIDITY_THRESHOLD: int = 500
 ARTICLE_AUTHOR_REWARD: float = 300
+WINNER_AUTHOR_REWARD: float = 1000
+COMPENSATION_PER_REACTION: float=50
+LOAD_PREMATURE_THREADS_DAYS_THRESHOLD=7
 ADMINISTRATORS_LIST:List[str]=["edgyhammer","dichnlz"]
-
 
 
 class CompetitionPhase(IntEnum):
@@ -25,7 +28,6 @@ class CompetitionPhase(IntEnum):
     ONGOING = 2
     GRADING = 3
     CONCLUDING = 4
-
 
 # A participant class to store and manage user data (currently in ram only).
 class Participant:
@@ -40,9 +42,9 @@ class Participant:
         self.bet_choices[thread_id] = amount
         self.balance -= amount
 
-    def collect_reward(self, winner_thread_id: int, odds: float):
+    def collect_bet_reward(self, winner_thread_id: int, odds: float):
         if winner_thread_id in self.bet_choices:
-            self.balance += self.bet_choices[winner_thread_id] * odds
+            self.balance += round(self.bet_choices[winner_thread_id] * odds,2)
 
     async def collect_ubi(self, event: Component):
         if not self.already_UBIed:
@@ -70,7 +72,6 @@ class Participant:
         except TypeError:
             print('User type mismatch')
 
-
 # # A control panel class to manage the control panel thread, within which all the bet-related activities, both user-wise and
 # administrator-wise, are conducted.
 class ControlPanel:
@@ -85,31 +86,33 @@ class ControlPanel:
         self.all_bets_vs_thread_id: Dict[int, float] = {}
         self.all_odds_vs_thread_id: Dict[int, float] = {}
         self.phase = CompetitionPhase.PREMATCH
-
+        # # A GUI thread for admins to manage the events, including closing the betting session, announcing the end of the event, the winner.
+        # # In side this same GUI thread, there should be also a CLI output of the current status of each competitor, i.e. the total bet amount,
+        # # the number of members betting for this competitor and the odds.
         self.main_menu_ui: list[ActionRow] = [
             ActionRow(
                 Button(
-                    custom_id='test' + self.start_date,
+                    custom_id=self.start_date+":"+'test',
                     style=ButtonStyle.GREEN,
                     label='测试'
                 ),
                 Button(
-                    custom_id='collect_ubi',
+                    custom_id=self.start_date+":"+'collect_ubi',
                     style=ButtonStyle.GREEN,
                     label='领取代币'
                 ),
                 Button(
-                    custom_id='set_phase:' + 'ongoing',
+                    custom_id=self.start_date+":"+'set_phase:' + 'ongoing',
                     style=ButtonStyle.GREEN,
                     label='开始比赛'
                 ),
                 Button(
-                    custom_id='set_phase:' + 'grading',
+                    custom_id=self.start_date+":"+'set_phase:' + 'grading',
                     style=ButtonStyle.RED,
                     label='开放投票'
                 ),
                 Button(
-                    custom_id='set_phase:' + 'concluding',
+                    custom_id=self.start_date+":"+'set_phase:' + 'concluding',
                     style=ButtonStyle.BLURPLE,
                     label='公布结果'
                 )
@@ -127,6 +130,8 @@ class ControlPanel:
         for aParticipant in self.all_participants:
             print(aParticipant)
 
+    # # Buttons manager: add buttons to each thread of essay. Buttons including the bet for this thread button,
+    # # A button will provoke a bet modal, asking the participants for bet amount.
     async def add_new_bet_option_ui(self, article_thread: GuildForumPost):
         temp_thread_id: int = article_thread.id
         temp_initial_message = await article_thread.fetch_message(temp_thread_id)
@@ -185,17 +190,17 @@ class ControlPanel:
         ctx = event.ctx
         announcement_modal = Modal(
             ShortText(label="优胜文章id", value="1234567890123", custom_id="winner_thread_id"),
-            title="宣布获奖文章id",
+            title="宣布获奖文章",
         )
         await ctx.send_modal(modal=announcement_modal)
         modal_ctx: ModalContext = await ctx.bot.wait_for_modal(announcement_modal)
 
         try:
             temp_winner_thread_id = int(modal_ctx.responses["winner_thread_id"])
-            self.calculate_odds()
-            self.distribute_bet_rewards(temp_winner_thread_id)
+            
         except ValueError:
             await modal_ctx.send('请输入整数。', delete_after=5, ephemeral=True)
+        return temp_winner_thread_id
 
     # # An odds calculator
     def calculate_odds(self):
@@ -210,31 +215,28 @@ class ControlPanel:
                     total_bet += aParticipant.bet_choices[aThread]
 
         for aThread in self.all_bets_vs_thread_id:
-            self.all_odds_vs_thread_id[aThread] = total_bet / self.all_bets_vs_thread_id[aThread]
+            if self.all_bets_vs_thread_id[aThread]!=0:
+                self.all_odds_vs_thread_id[aThread] = total_bet / self.all_bets_vs_thread_id[aThread]
 
     def distribute_bet_rewards(self, winner_article_thread_id: int):
-        winner_odd = self.all_odds_vs_thread_id[winner_article_thread_id]
-        for aParticipant in self.all_participants:
-            aParticipant.collect_reward(winner_article_thread_id, winner_odd)
+        if len(self.all_odds_vs_thread_id)>0:
+            winner_odd = self.all_odds_vs_thread_id[winner_article_thread_id]
+            for aParticipant in self.all_participants:
+                aParticipant.collect_bet_reward(winner_article_thread_id, winner_odd)
+        else:
+            pass
 
 
-# A user database manager class, similar to the one used in stock manager.
-'''async def write_json(all_participants: List[Participant]):
-    temp_dict: dict = {}
-    for aParticipant in all_participants:
-        temp_dict[aParticipant.username] = aParticipant.balance
+    # A user database manager class, similar to the one used in stock manager.
+    async def write_participants_balance_json(self,all_participants: List[Participant]):
+        temp_dict: dict = {}
+        for aParticipant in all_participants:
+            temp_dict[aParticipant.username] = aParticipant.balance
+        
+        async with aiofiles.open(BET_PARTICIPANTS_BALANCE_DATABASE_PATH, 'w', encoding='utf-8') as f:
+            json_data = json.dumps(temp_dict, ensure_ascii=False, indent=4)
+            await f.write(json_data)
 
-    async with aiofiles.open(user_balance_database_file_path, 'w', encoding='utf-8') as f:
-        json_data = json.dumps(temp_dict, ensure_ascii=False, indent=4)
-        await f.write(json_data)'''
-
-
-# # A GUI thread for admins to manage the events, including closing the betting session, announcing the end of the event, the winner.
-# # In side this same GUI thread, there should be also a CLI output of the current status of each competitor, i.e. the total bet amount,
-# # the number of members betting for this competitor and the odds.
-
-# # Buttons manager: add buttons to each thread of essay. Buttons including the bet for this thread button,
-# # A button will provoke a bet modal, asking the participants for bet amount.
 
 # Algorithms to actually make things happen.
 # # A premature reactions remover
@@ -264,3 +266,18 @@ async def grant_reward_to_article_author(
                     aParticipant.is_article_author = True
                     aParticipant.balance += amount
 
+# # Grant reward to content creator
+async def grant_reward_to_winner_author(
+        winner_thread_id: int,
+        control_panel: ControlPanel,
+        amount: float=WINNER_AUTHOR_REWARD
+): 
+    winner_thread:GuildForumPost=await control_panel.channel.fetch_post(winner_thread_id)
+    winner_message:Message = await winner_thread.fetch_message(winner_thread_id)
+    winner_username:str=winner_message.author.username
+
+    temp_participant:Participant=Participant(winner_username)
+            
+    for aParticipant in control_panel.all_participants:
+        if aParticipant == temp_participant:
+            aParticipant.balance += amount
