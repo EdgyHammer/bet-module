@@ -49,7 +49,7 @@ class CompetitionExtension(Extension):
         ctx = event.ctx
         print(ctx.custom_id)
 
-        if ctx.custom_id == "test" + self.start_date:
+        if ctx.custom_id == "test" + self.control_panel.start_date:
             ctx.send(
                 f"Current competition phase is:{str(self.control_panel.phase)}, button clicked by:{str(ctx.author.username)},{str(ctx.author.nickname)}",
                 ephemeral=True,
