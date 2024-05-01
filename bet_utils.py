@@ -14,9 +14,10 @@ import datetime
 #user_balance_database_file_path = 'Data/user_balance.json'
 COMPETITION_GUILD_ID: int = 1200434448425033788
 COMPETITION_FORUM_CHANNEL_ID: int = 1228907795563151511
-BOT_USERNAME = 'OGAS'
 ARTICLE_VALIDITY_THRESHOLD: int = 500
 ARTICLE_AUTHOR_REWARD: float = 300
+ADMINISTRATORS:List[str]=["edgyhammer","dichnlz"]
+
 
 
 class CompetitionPhase(IntEnum):

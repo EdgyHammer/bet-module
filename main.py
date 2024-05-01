@@ -51,8 +51,9 @@ class CompetitionExtension(Extension):
 
         if ctx.custom_id == "test" + self.start_date:
             ctx.send(
-                f"Current competition phase is:{self.control_panel.phase}, button clicked by:{ctx.author.username},{ctx.author.nickname}",
-                ephemeral=True
+                f"Current competition phase is:{str(self.control_panel.phase)}, 
+                button clicked by:{str(ctx.author.username)},{str(ctx.author.nickname)}",
+                ephemeral=True,
             )
 
         # When 开始比赛 button is clicked, competition starts, bot grant rewards to authors who's already written an article.
