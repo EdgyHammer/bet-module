@@ -1,4 +1,4 @@
-from interactions import Message
+from interactions import Message, Client
 from interactions import ActionRow, Button, ButtonStyle
 from interactions import Modal, ShortText, ModalContext
 from interactions.api.events import Component
@@ -127,10 +127,12 @@ class ControlPanel:
         post: GuildForumPost = await self.channel.create_post(name=self.thread_title, content=self.thread_content, components=self.main_menu_ui)
         self.thread = post
 
-    def print_competition_info(self):
+    def print_competition_info(self,bot:Client):
+        full_info_string=f"guild:{str(bot.guilds[0])},channel:{self.channel},thread:{self.thread},phase:{self.phase}, date{self.start_date}"
         print(self.thread, self.phase, self.channel, self.start_date, self.all_articles_thread_id, self.all_participants)
         for aParticipant in self.all_participants:
             print(aParticipant)
+        return full_info_string
 
     # # Buttons manager: add buttons to each thread of essay. Buttons including the bet for this thread button,
     # # A button will provoke a bet modal, asking the participants for bet amount.
