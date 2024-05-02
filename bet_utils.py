@@ -128,7 +128,7 @@ class ControlPanel:
         self.thread = post
 
     def print_competition_info(self,bot:Client):
-        full_info_string=f"guild:{str(bot.guilds[0])},channel:{self.channel},thread:{self.thread},phase:{self.phase}, date{self.start_date}"
+        full_info_string=f"guild_id:{str(bot.guilds[0].id)},channel_id:{self.channel.id},phase:{self.phase}, date{self.start_date}"
         print(self.thread, self.phase, self.channel, self.start_date, self.all_articles_thread_id, self.all_participants)
         for aParticipant in self.all_participants:
             print(aParticipant)
