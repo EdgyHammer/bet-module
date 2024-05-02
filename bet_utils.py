@@ -130,10 +130,16 @@ class ControlPanel:
         self.thread = post
 
     def print_competition_info(self,bot:Client):
-        full_info_string=f"guild_id:{str(bot.guilds[0].id)},channel_id:{self.channel.id},phase:{self.phase}, date{self.start_date}"
-        print(self.thread, self.phase, self.channel, self.start_date, self.all_articles_thread_id, self.all_participants)
+
+        full_info_string=f"1st_guild_id:{str(bot.guilds[0].id)}, channel_id:{self.channel.id}, phase:{self.phase}, date{self.start_date}"
+        #print(self.thread, self.phase, self.channel, self.start_date, self.all_articles_thread_id, self.all_participants)
         for aParticipant in self.all_participants:
             print(aParticipant)
+
+        full_info_string+="\n"+"all guilds:"+"\n"
+        for aGuild in bot.guilds:
+            full_info_string+=str(aGuild.id)+"\n"
+
         return full_info_string
 
     # # Buttons manager: add buttons to each thread of essay. Buttons including the bet for this thread button,
