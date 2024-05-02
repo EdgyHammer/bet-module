@@ -24,17 +24,32 @@ class CompetitionExtension(Extension):
     )
 
     @module_base.subcommand(
-        sub_cmd_name="bet_test", sub_cmd_description="test command, for test only"
+        sub_cmd_name="bet_module_info", sub_cmd_description="test command, for test only"
     )
-    async def bet_test(self, ctx: SlashContext):
-        self.control_panel.print_competition_info()
+    async def bet_module_info(self, ctx: SlashContext):
+        full_info_string=self.control_panel.print_competition_info()
+        await ctx.send(full_info_string)
+
+    @module_base.subcommand(
+        sub_cmd_name="bet_module_sync_with_fetch", sub_cmd_description="Update the module data using fetch_channel."
+    )
+    async def bet_module_sync_with_fetch(self, ctx: SlashContext):
+        self.channel =await self.bot.fetch_channel(bet_utils.COMPETITION_FORUM_CHANNEL_ID)
+        self.control_panel = bet_utils.ControlPanel(self.channel)
+
+    @module_base.subcommand(
+        sub_cmd_name="bet_module_sync_with_get", sub_cmd_description="Update the module data using get_channel."
+    )
+    async def bet_module_sync_with_get(self, ctx: SlashContext):
+        self.channel =await self.bot.get_channel(bet_utils.COMPETITION_FORUM_CHANNEL_ID)
+        self.control_panel = bet_utils.ControlPanel(self.channel)
 
     @module_base.subcommand(
         sub_cmd_name="setup_competition",
         sub_cmd_description="Set up the competition bet control panel thread.",
     )
     async def setup_competition(self, ctx: SlashContext):
-        self.channel = self.bot.get_channel(bet_utils.COMPETITION_FORUM_CHANNEL_ID)
+        self.channel = self.bot.fetch_channel(bet_utils.COMPETITION_FORUM_CHANNEL_ID)
         print(self.channel)
         self.control_panel = bet_utils.ControlPanel(self.channel)
         await self.control_panel.create_control_panel_thread()
