@@ -27,7 +27,7 @@ class CompetitionExtension(Extension):
         sub_cmd_name="bet_module_info", sub_cmd_description="test command, for test only"
     )
     async def bet_module_info(self, ctx: SlashContext):
-        full_info_string=self.control_panel.print_competition_info()
+        full_info_string=self.control_panel.print_competition_info(self.bot)
         await ctx.send(full_info_string)
 
     @module_base.subcommand(
