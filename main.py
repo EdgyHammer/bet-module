@@ -7,9 +7,9 @@ from interactions.models.discord.channel import GuildForum
 
 import datetime
 
-#import bet_utils
+import bet_utils
 
-from . import bet_utils
+#from . import bet_utils
 
 # The extension class that puts everything together.
 class CompetitionExtension(Extension):
@@ -54,6 +54,7 @@ class CompetitionExtension(Extension):
                 f"Current competition phase is:{str(self.control_panel.phase)}"
                 + f"button clicked by:{str(ctx.author.username)},{str(ctx.author.nickname)}"
                 + f"user account balance:{temp_participant.balance}",
+                delete_after=30,
                 ephemeral=True,
             )
 
@@ -133,7 +134,7 @@ class CompetitionExtension(Extension):
             temp_competition_result = ""
 
             for aParticipant in self.control_panel.all_participants:
-                temp_competition_result += f" {{ username:{str(aParticipant.username)}, balance:{aParticipant.balance} }}" + "\n"
+                temp_competition_result += f" {{ username:\"{str(aParticipant.username)}\", balance:{aParticipant.balance} }}" + "\n"
 
             print(temp_competition_result)
 
