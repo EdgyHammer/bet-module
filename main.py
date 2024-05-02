@@ -7,9 +7,9 @@ from interactions.models.discord.channel import GuildForum
 
 import datetime
 
-import bet_utils
+#import bet_utils
 
-# from . import bet_utils
+from . import bet_utils
 
 # The extension class that puts everything together.
 class CompetitionExtension(Extension):
