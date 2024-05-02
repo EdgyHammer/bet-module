@@ -14,7 +14,9 @@ import datetime
 
 BET_PARTICIPANTS_BALANCE_DATABASE_PATH= f"{os.path.dirname(__file__)}/participants_balance.json"
 COMPETITION_GUILD_ID: int = 1200434448425033788
+#COMPETITION_GUILD_ID: int = 1150630510696075404
 COMPETITION_FORUM_CHANNEL_ID: int = 1228907795563151511
+#COMPETITION_FORUM_CHANNEL_ID: int = 1228907795563151511
 ARTICLE_VALIDITY_THRESHOLD: int = 500
 ARTICLE_AUTHOR_REWARD: float = 300
 WINNER_AUTHOR_REWARD: float = 1000
@@ -78,7 +80,7 @@ class ControlPanel:
     def __init__(self, channel: GuildForum):
         self.thread_title: str = '投注站'
         self.thread_content: str = '比赛投稿阶段，任何成员均可从此处领取总计100枚竞猜代币，此代币可以用于押注本次比赛的优胜文章。'
-        self.start_date: str = datetime.datetime.today().strftime("%Y/%m/%d")
+        self.start_date: str = datetime.datetime.today().strftime("%Y-%m-%d")
         self.channel: GuildForum = channel
         self.thread: GuildForumPost = None
         self.all_participants: List[Participant] = []

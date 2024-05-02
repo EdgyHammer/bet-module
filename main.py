@@ -5,12 +5,8 @@ from interactions import SlashCommand, SlashContext
 from interactions.api.events import Component, ThreadCreate, MessageReactionAdd
 from interactions.models.discord.channel import GuildForum
 
-import json
-import aiofiles
-import asyncio
 import datetime
-import os
-import re
+
 import bet_utils
 
 # from . import bet_utils
@@ -73,9 +69,9 @@ class CompetitionExtension(Extension):
             all_existing_threads = await self.channel.fetch_posts()
             for aThread in all_existing_threads:
 
-                print(aThread.created_at.strftime("%Y/%m/%d"))
+                print(aThread.created_at.strftime("%Y-%m-%d"))
                 acceptable_thread_threshold_date = datetime.datetime.strptime(
-                    self.control_panel.start_date, "%Y/%m/%d"
+                    self.control_panel.start_date, "%Y-%m-%d"
                 ) - datetime.timedelta(
                     days=bet_utils.LOAD_PREMATURE_THREADS_DAYS_THRESHOLD
                 )
@@ -137,7 +133,7 @@ class CompetitionExtension(Extension):
             temp_competition_result = ""
 
             for aParticipant in self.control_panel.all_participants:
-                temp_competition_result += str(aParticipant.balance) + "\n"
+                temp_competition_result += f" {{ username:{str(aParticipant.username)}, balance:{aParticipant.balance} }}" + "\n"
 
             print(temp_competition_result)
 
