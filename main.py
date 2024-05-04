@@ -33,8 +33,8 @@ class CompetitionExtension(Extension):
     @module_base.subcommand(
         sub_cmd_name="bet_module_sync_with_fetch", sub_cmd_description="Update the module data using fetch_channel."
     )
-    async def bet_module_sync_with_fetch(self, ctx: SlashContext):
-        self.channel =await self.bot.fetch_channel(bet_utils.COMPETITION_FORUM_CHANNEL_ID)
+    async def bet_module_sync_with_force_fetch(self, ctx: SlashContext):
+        self.channel =await self.bot.fetch_channel(bet_utils.COMPETITION_FORUM_CHANNEL_ID,force=True)
         self.control_panel = bet_utils.ControlPanel(self.channel)
 
     @module_base.subcommand(
@@ -49,7 +49,7 @@ class CompetitionExtension(Extension):
         sub_cmd_description="Set up the competition bet control panel thread.",
     )
     async def setup_competition(self, ctx: SlashContext):
-        self.channel = await self.bot.fetch_channel(bet_utils.COMPETITION_FORUM_CHANNEL_ID)
+        self.channel = await self.bot.fetch_channel(bet_utils.COMPETITION_FORUM_CHANNEL_ID,force=True)
         #print(self.channel)
         self.control_panel = bet_utils.ControlPanel(self.channel)
         await self.control_panel.create_control_panel_thread()
